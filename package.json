@@ -7,7 +7,7 @@
     "start-web": "bunx rork start -p n3clxsvvcacvxf0efk2i9 --web --tunnel",
     "start-web-dev": "DEBUG=expo* bunx rork start -p n3clxsvvcacvxf0efk2i9 --web --tunnel",
     "lint": "expo lint",
-    "build": "expo export:web"
+    "build": "npx expo export --platform web"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
