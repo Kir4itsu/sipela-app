@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -23,6 +24,11 @@ import {
   X,
   Check,
   Settings,
+  FileText,
+  CheckCircle,
+  Clock,
+  TrendingUp,
+  AlertCircle,
 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
@@ -32,9 +38,19 @@ import Colors from '@/constants/colors';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase, MaintenanceTicket } from '@/lib/supabase';
 
+const { width } = Dimensions.get('window');
+
 type FilterOptions = {
   status: MaintenanceTicket['status'] | 'ALL';
   category: MaintenanceTicket['category'] | 'ALL';
+};
+
+type StatCardData = {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  color: string;
+  bgColor: string;
 };
 
 export default function AdminDashboardScreen() {
@@ -63,6 +79,17 @@ export default function AdminDashboardScreen() {
       return data as MaintenanceTicket[];
     },
   });
+
+  // Calculate statistics
+  const statistics = useMemo(() => {
+    const tickets = ticketsQuery.data || [];
+    return {
+      total: tickets.length,
+      diajukan: tickets.filter(t => t.status === 'DIAJUKAN').length,
+      diperbaiki: tickets.filter(t => t.status === 'DIPERBAIKI').length,
+      selesai: tickets.filter(t => t.status === 'SELESAI').length,
+    };
+  }, [ticketsQuery.data]);
 
   const deleteTicketMutation = useMutation({
     mutationFn: async (ticketId: string) => {
@@ -198,55 +225,149 @@ export default function AdminDashboardScreen() {
     );
   }
 
+  const statCards: StatCardData[] = [
+    {
+      title: 'Total Laporan',
+      value: statistics.total,
+      icon: <FileText size={24} color="#3B82F6" />,
+      color: '#3B82F6',
+      bgColor: '#EFF6FF',
+    },
+    {
+      title: 'Diajukan',
+      value: statistics.diajukan,
+      icon: <Clock size={24} color="#F59E0B" />,
+      color: '#F59E0B',
+      bgColor: '#FEF3C7',
+    },
+    {
+      title: 'Diperbaiki',
+      value: statistics.diperbaiki,
+      icon: <TrendingUp size={24} color="#8B5CF6" />,
+      color: '#8B5CF6',
+      bgColor: '#F3E8FF',
+    },
+    {
+      title: 'Selesai',
+      value: statistics.selesai,
+      icon: <CheckCircle size={24} color="#10B981" />,
+      color: '#10B981',
+      bgColor: '#D1FAE5',
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Admin Dashboard</Text>
-          <Text style={styles.headerSubtitle}>{user?.email}</Text>
-        </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
-          <LogOut size={20} color={Colors.error} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => setShowFilterModal(true)}>
-          <Filter size={18} color={Colors.primary} />
-          <Text style={styles.actionButtonText}>Filter</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={handleImportCSV}>
-          <Upload size={18} color={Colors.primary} />
-          <Text style={styles.actionButtonText}>Import</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={handleExportCSV}>
-          <Download size={18} color={Colors.primary} />
-          <Text style={styles.actionButtonText}>Export</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/admin/change-password')}
-        >
-          <Settings size={18} color={Colors.primary} />
-          <Text style={styles.actionButtonText}>Password</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {ticketsQuery.data?.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Tidak ada laporan</Text>
+      {/* Header dengan gradient effect */}
+      <View style={styles.headerContainer}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {user?.email?.charAt(0).toUpperCase() || 'A'}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>Dashboard Admin</Text>
+              <Text style={styles.headerSubtitle}>{user?.email}</Text>
+            </View>
           </View>
-        ) : (
-          ticketsQuery.data?.map((ticket) => (
-            <TicketCard
-              key={ticket.id}
-              ticket={ticket}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))
-        )}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
+            <LogOut size={22} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Statistics Cards */}
+        <View style={styles.statsContainer}>
+          {statCards.map((stat, index) => (
+            <View key={index} style={[styles.statCard, { backgroundColor: stat.bgColor }]}>
+              <View style={styles.statIconContainer}>
+                {stat.icon}
+              </View>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={[styles.statTitle, { color: stat.color }]}>{stat.title}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Action Buttons - Redesigned */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Aksi Cepat</Text>
+          <View style={styles.actions}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.actionButtonPrimary]} 
+              onPress={() => setShowFilterModal(true)}
+            >
+              <View style={styles.actionIconCircle}>
+                <Filter size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.actionButtonText}>Filter</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.actionButtonPrimary]} 
+              onPress={handleImportCSV}
+            >
+              <View style={styles.actionIconCircle}>
+                <Upload size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.actionButtonText}>Import</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.actionButtonPrimary]} 
+              onPress={handleExportCSV}
+            >
+              <View style={styles.actionIconCircle}>
+                <Download size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.actionButtonText}>Export</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonPrimary]}
+              onPress={() => router.push('/admin/change-password')}
+            >
+              <View style={styles.actionIconCircle}>
+                <Settings size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.actionButtonText}>Password</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tickets List */}
+        <View style={styles.ticketsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Daftar Laporan</Text>
+            <View style={styles.badgeCount}>
+              <Text style={styles.badgeCountText}>{ticketsQuery.data?.length || 0}</Text>
+            </View>
+          </View>
+
+          {ticketsQuery.data?.length === 0 ? (
+            <View style={styles.emptyState}>
+              <AlertCircle size={48} color={Colors.textSecondary} />
+              <Text style={styles.emptyText}>Tidak ada laporan</Text>
+              <Text style={styles.emptySubtext}>Laporan akan muncul di sini</Text>
+            </View>
+          ) : (
+            ticketsQuery.data?.map((ticket) => (
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))
+          )}
+        </View>
       </ScrollView>
 
       <EditModal
@@ -282,34 +403,60 @@ const TicketCard = ({
   onEdit: (ticket: MaintenanceTicket) => void;
   onDelete: (ticket: MaintenanceTicket) => void;
 }) => {
-  const statusColors: Record<MaintenanceTicket['status'], string> = {
-    DIAJUKAN: Colors.status.submitted,
-    DISETUJUI: Colors.status.approved,
-    DIPERBAIKI: Colors.status.inProgress,
-    SELESAI: Colors.status.completed,
+  const statusColors: Record<MaintenanceTicket['status'], { bg: string; text: string }> = {
+    DIAJUKAN: { bg: '#FEF3C7', text: '#F59E0B' },
+    DISETUJUI: { bg: '#DBEAFE', text: '#3B82F6' },
+    DIPERBAIKI: { bg: '#F3E8FF', text: '#8B5CF6' },
+    SELESAI: { bg: '#D1FAE5', text: '#10B981' },
   };
 
   return (
     <View style={styles.ticketCard}>
       <View style={styles.ticketHeader}>
-        <Text style={styles.ticketName}>{ticket.name}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: statusColors[ticket.status] }]}>
-          <Text style={styles.statusText}>{ticket.status}</Text>
+        <View style={styles.ticketHeaderLeft}>
+          <View style={styles.ticketAvatar}>
+            <Text style={styles.ticketAvatarText}>{ticket.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={styles.ticketHeaderInfo}>
+            <Text style={styles.ticketName}>{ticket.name}</Text>
+            <Text style={styles.ticketRoom}>Kamar {ticket.room_number}</Text>
+          </View>
+        </View>
+        <View style={[styles.statusBadgeNew, { backgroundColor: statusColors[ticket.status].bg }]}>
+          <Text style={[styles.statusTextNew, { color: statusColors[ticket.status].text }]}>
+            {ticket.status}
+          </Text>
         </View>
       </View>
-      <Text style={styles.ticketDetail}>📍 {ticket.room_number}</Text>
-      <Text style={styles.ticketDetail}>📧 {ticket.email}</Text>
-      <Text style={styles.ticketDetail}>📱 {ticket.phone}</Text>
-      <Text style={styles.ticketDetail}>🏷️ {ticket.category}</Text>
-      <Text style={styles.ticketDescription}>{ticket.description}</Text>
+
+      <View style={styles.ticketBody}>
+        <View style={styles.ticketInfoRow}>
+          <Text style={styles.ticketLabel}>Email:</Text>
+          <Text style={styles.ticketValue}>{ticket.email}</Text>
+        </View>
+        <View style={styles.ticketInfoRow}>
+          <Text style={styles.ticketLabel}>Telepon:</Text>
+          <Text style={styles.ticketValue}>{ticket.phone}</Text>
+        </View>
+        <View style={styles.ticketInfoRow}>
+          <Text style={styles.ticketLabel}>Kategori:</Text>
+          <Text style={styles.ticketValue}>{ticket.category}</Text>
+        </View>
+      </View>
+
+      <View style={styles.ticketDescriptionContainer}>
+        <Text style={styles.ticketDescriptionLabel}>Deskripsi</Text>
+        <Text style={styles.ticketDescription}>{ticket.description}</Text>
+      </View>
+
       <View style={styles.ticketActions}>
-        <TouchableOpacity style={styles.editButton} onPress={() => onEdit(ticket)}>
-          <Edit2 size={16} color={Colors.surface} />
-          <Text style={styles.editButtonText}>Edit</Text>
+        <TouchableOpacity style={styles.editButtonNew} onPress={() => onEdit(ticket)}>
+          <Edit2 size={18} color="#3B82F6" />
+          <Text style={styles.editButtonTextNew}>Edit</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButton} onPress={() => onDelete(ticket)}>
-          <Trash2 size={16} color={Colors.surface} />
-          <Text style={styles.deleteButtonText}>Hapus</Text>
+        <TouchableOpacity style={styles.deleteButtonNew} onPress={() => onDelete(ticket)}>
+          <Trash2 size={18} color="#EF4444" />
+          <Text style={styles.deleteButtonTextNew}>Hapus</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -347,7 +494,7 @@ const EditModal = ({
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Edit Status</Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -375,7 +522,7 @@ const EditModal = ({
             {isSaving ? (
               <ActivityIndicator color={Colors.surface} />
             ) : (
-              <Text style={styles.saveButtonText}>Simpan</Text>
+              <Text style={styles.saveButtonText}>Simpan Perubahan</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -407,7 +554,7 @@ const FilterModal = ({
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Filter Laporan</Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -457,151 +604,320 @@ const FilterModal = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headerContainer: {
+    backgroundColor: Colors.primary,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingTop: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.surface,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '800' as const,
-    color: Colors.text,
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.surface,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
   },
   logoutButton: {
-    padding: 8,
-  },
-  actions: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 8,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: 10,
-    paddingVertical: 10,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.primary,
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    gap: 16,
+    paddingBottom: 24,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 12,
+  },
+  statCard: {
+    width: (width - 52) / 2,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statIconContainer: {
+    marginBottom: 12,
+  },
+  statValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  statTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  actionsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionButton: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  actionButtonPrimary: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  ticketsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  badgeCount: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeCountText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.surface,
   },
   emptyState: {
     paddingVertical: 60,
     alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    marginTop: 8,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
     color: Colors.textSecondary,
+    marginTop: 4,
   },
   ticketCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#E2E8F0',
   },
   ticketHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  ticketHeaderLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    flex: 1,
+    gap: 12,
+  },
+  ticketAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ticketAvatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.surface,
+  },
+  ticketHeaderInfo: {
+    flex: 1,
   },
   ticketName: {
-    fontSize: 18,
-    fontWeight: '700' as const,
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  ticketRoom: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  statusBadgeNew: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  statusTextNew: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  ticketBody: {
+    gap: 8,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  ticketInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ticketLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    width: 80,
+  },
+  ticketValue: {
+    fontSize: 13,
     color: Colors.text,
     flex: 1,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+  ticketDescriptionContainer: {
+    marginBottom: 16,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700' as const,
-    color: Colors.surface,
-  },
-  ticketDetail: {
-    fontSize: 14,
+  ticketDescriptionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   ticketDescription: {
     fontSize: 14,
     color: Colors.text,
-    marginTop: 8,
-    marginBottom: 12,
     lineHeight: 20,
   },
   ticketActions: {
     flexDirection: 'row',
+    gap: 10,
+  },
+  editButtonNew: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    paddingVertical: 12,
     gap: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  editButton: {
+  editButtonTextNew: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  deleteButtonNew: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingVertical: 10,
-    gap: 6,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 12,
+    paddingVertical: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
-  editButtonText: {
+  deleteButtonTextNew: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.surface,
-  },
-  deleteButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.error,
-    borderRadius: 10,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  deleteButtonText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.surface,
+    fontWeight: '700',
+    color: '#EF4444',
   },
   modalOverlay: {
     flex: 1,
@@ -623,8 +939,11 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 24,
-    fontWeight: '800' as const,
+    fontWeight: '800',
     color: Colors.text,
+  },
+  closeButton: {
+    padding: 4,
   },
   statusList: {
     gap: 12,
@@ -634,11 +953,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
   },
   statusOptionActive: {
     backgroundColor: Colors.primary,
@@ -646,7 +965,7 @@ const styles = StyleSheet.create({
   },
   statusOptionText: {
     fontSize: 16,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: Colors.text,
   },
   statusOptionTextActive: {
@@ -663,14 +982,15 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 17,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: Colors.surface,
   },
   filterLabel: {
     fontSize: 16,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: 12,
+    marginTop: 8,
   },
   filterOptions: {
     flexDirection: 'row',
@@ -679,12 +999,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
   },
   filterChipActive: {
     backgroundColor: Colors.primary,
@@ -692,7 +1012,7 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: Colors.text,
   },
   filterChipTextActive: {
@@ -703,10 +1023,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
+    marginTop: 8,
   },
   applyButtonText: {
     fontSize: 17,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: Colors.surface,
   },
 });
